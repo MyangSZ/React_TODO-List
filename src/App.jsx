@@ -8,25 +8,67 @@ import './App.css'
 // 5. 자유롭게 적용해보고 싶은 CSS를 작성해보세요.
 
 function App() {
-  const [todo, setTodo] = useState([ 
-    // 아이디와 컨텐츠를 갖는 객체를 넣어준다.
-    {
-      id: Number(new Date()), content:'안녕하세요'
-    }, // 인풋 값 추가
-  ])
+  // 서버에서 데이터를 받아와서 렌더링 할 수 있도록
+  const [isLoading, data] = useFetch("http://localhost:3000/todo") // 데이터를 서버에서 받아오기만 한다.
+  const [todo, setTodo] = useState([]) // 화면에 리렌더링 해주는 역할
+  const [currentTodo, setCurrentTodo] = useState(null)
+  const [time, setTime] = useState(0)
+  const [isTimer, setIsTimer] = useState(false)
+
+  // 시간소모시 리스트도 시간 소모하게
+  useEffect(() => {
+    if(currentTodo){
+      fetch(`http://localhost:3000/todo/${currentTodo}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        time: todo.find((el) => el.id === currentTodo)
+        .time + 1,
+      }),
+    })
+    .then(res => res.json())
+    .then(res => 
+      setTodo((prev) => 
+        prev.map ((el) => (el.id === currentTodo ? res : el))
+    )
+  )}
+     
+  }, [time])
+
+  useEffect(() => {
+    setTime(0)
+  }, [isTimer])
+
+
+   // 아이디와 컨텐츠를 갖는 객체를 넣어준다. useState([여기있던부분)
+    // {
+    //   id: Number(new Date()), content:'안녕하세요'
+    // }, // 인풋 값 추가
+    useEffect(() => {
+      if (data) setTodo(data)
+    }, [isLoading])
 
   return (
     <>
-    <Advice />
+    <h1>오늘 뭐 할끄냐?</h1>
     <Clock />
+    <h2 className="advice advice1">이거슨 오늘의 명언?!</h2>
+    <Advice />
+
+
+    <button onClick={() => setIsTimer(prev => !prev)}>
+      {isTimer ? '스톱워치로변경' : '타이머로 변경'}</button>
+      {isTimer ? (<Timer time={time} setTime={setTime} />) :
+      (<StopWatch time={time} setTime={setTime} />)}
+    
+
   {/* todoinput에서 투두를 수정하는 함수를 내려받을 수 있도록 만들기 */}
   <TodoInput setTodo={ setTodo } /> 
   {/* todo리스트에 todo 내려주기*/}
-  <TodoList todo={todo} setTodo={setTodo}/>
+  <TodoList todo={todo} setTodo={setTodo} setCurrentTodo={setCurrentTodo}
+  currentTodo={currentTodo}/>
     </>
   )
 }
-
 
 // 인풋, 추가 입력하는 부분
 const TodoInput = ({setTodo}) => { // settodo 받아오기
@@ -34,15 +76,16 @@ const TodoInput = ({setTodo}) => { // settodo 받아오기
   const inputRef = useRef(null)
   const addTodo = () => { // 버튼 클릭시 인풋의 값 가져다 쓰기.
     const newTodo = { // 클릭이 되었을때 인풋에 담긴 값을 지정형태로 추가 해주도록 한다.
-      
-      content: inputRef.current.value,
+      // 타임항목 추가 (time: 0)
+      content: inputRef.current.value,time: 0
     }
+    // json서버에 넣기
     fetch("http://localhost:3000/todo", {
       method: "POST",
       body: JSON.stringify(newTodo),
     })
-
-    setTodo((prev) => [...prev, newTodo])
+    .then(res => res.json())
+    .then(res => setTodo((prev) => [...prev, res]))
   };
 
   return (
@@ -55,13 +98,17 @@ const TodoInput = ({setTodo}) => { // settodo 받아오기
 }
 
 // 투두 쇼시하는 부분. 리스트
-const TodoList = ({todo, setTodo}) => {
+const TodoList = ({todo, setTodo, setCurrentTodo, currentTodo}) => {
   return(
     <>
     <ul>
         {todo.map((el) => (
           // 각각의 todo정보가 필요. settodo함수 필요.
-        <Todo key={el.id} todo={el} setTodo={setTodo} />
+        <Todo key={el.id} 
+        todo={el} 
+        setTodo={setTodo} 
+        currentTodo={currentTodo}
+        setCurrentTodo={setCurrentTodo}/>
       )
       )}
       </ul>
@@ -70,17 +117,34 @@ const TodoList = ({todo, setTodo}) => {
 }
 
 // 리스트 목록
-const Todo = ({todo, setTodo}) => {
+const Todo = ({ todo, setTodo, setCurrentTodo, currentTodo }) => {
   return (
     <>
-    <li>{todo.content}
-          <button onClick={() => { 
+    <li className={currentTodo === todo.id ? 'current': ""}>
+      <div>
+        {todo.content}
+        <br />
+        {formatTime(todo.time)}
+      </div>
+      <div>
+      <button onClick={(() => setCurrentTodo(todo.id))}
+        >시작하기</button>
+      <button onClick={() => { 
+            fetch(`http://localhost:3000/todo/${todo.id}`, {
+              method: "DELETE",
+            }).then(res => {
+              if (res.ok) {
+                setTodo(prev => prev.filter(el => el.id !== todo.id))
+              }
+            })
             /* 삭제함수. id를 사용해서 삭제하기.
             상태변경 함수(setTodo)를 가져와 원래 상태값을 가져와서 
             필터를 통해 삭제하고 싶은 리스트를 걸러 낸 새로운 값 넣어주기*/
-            setTodo(prev => prev.filter(el => el.id !== todo.id)) 
+         //   setTodo(prev => prev.filter(el => el.id !== todo.id)) 
           /* 원래 상태값의 요소들과 삭제버튼을 누른 투두 아이디와 일치 하지 않는 요소만 남긴다*/
           }}>삭제</button>
+      </div>
+          
         </li>
     </>
   )
@@ -117,8 +181,8 @@ const Advice = () => {
     <>
     {!isLoading && (
       <>
-      <div>{data.message}</div>
-      <div>-{data.author}-</div>
+      <div className="advice advice2">{data.message}</div>
+      <div className="advice advice3">-{data.author}-</div>
       </>
     )}
     </>
@@ -138,7 +202,7 @@ const Clock = () => {
   }, [])
 
   return(
-    <div>{time.toLocaleTimeString()}</div>
+    <div className='clock'>{time.toLocaleTimeString()}</div>
   )
 }
 
@@ -154,8 +218,8 @@ const formatTime = (seconds) => {
 }
 
 //스톱워치 만들기
-const StopWatch = () => {
-  const [time, setTime] = useState(0)
+const StopWatch = ({time, setTime}) => {
+  // const [time, setTime] = useState(0)
   const [isOn, setIsOn] = useState(false) 
   // 꺼짐 켜짐 관리(꺼져이는 상태로 두기위해서 false
   const timerRef = useRef(null)
@@ -186,11 +250,11 @@ const StopWatch = () => {
 }
 
 // 타이머 만들기
-const Timer = () => {
+const Timer = ({time, setTime}) => {
   // 몇초를 셀것인지, 0이 되면 끝나야 된다
   const [startTime, setStartTime] = useState(0)
   const [isOn, setIsOn] = useState(false) // 일시정지, 다시시작 기능을 위해 넣어주기
-  const [time, setTime] =useState(0)
+  // const [time, setTime] =useState(0)
   const timerRef = useRef(null)
 
   useEffect(() => {
