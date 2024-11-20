@@ -51,9 +51,10 @@ function App() {
     <>
     <h1>오늘 뭐 할끄냐?</h1>
     <Clock />
+    <div className='advice-wrapper'>
     <h2 className="advice advice1">이거슨 오늘의 명언?!</h2>
     <Advice />
-
+    </div>
 
     <button onClick={() => setIsTimer(prev => !prev)}>
       {isTimer ? '스톱워치로변경' : '타이머로 변경'}</button>
@@ -181,6 +182,7 @@ const Advice = () => {
     <>
     {!isLoading && (
       <>
+      
       <div className="advice advice2">{data.message}</div>
       <div className="advice advice3">-{data.author}-</div>
       </>
